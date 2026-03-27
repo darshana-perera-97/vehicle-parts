@@ -104,6 +104,32 @@ function computeMostCommonOems(payload, limit = 4) {
     .map(([oemDisplayNo, count]) => ({ oemDisplayNo, count }));
 }
 
+async function validateAutobahnProductPage(url) {
+  try {
+    const response = await fetch(url, { method: "GET" });
+    if (!response.ok) {
+      return {
+        valid: false,
+        finalUrl: response.url || url,
+        isSameUrl: (response.url || url) === url,
+      };
+    }
+    const html = await response.text();
+    const finalUrl = response.url || url;
+    return {
+      valid: !html.includes("No products were found matching your selection."),
+      finalUrl,
+      isSameUrl: finalUrl === url,
+    };
+  } catch {
+    return {
+      valid: false,
+      finalUrl: url,
+      isSameUrl: true,
+    };
+  }
+}
+
 app.get("/api/vin/:vin", async (req, res) => {
   try {
     if (RAPIDAPI_KEY === "PUT_YOUR_KEY_HERE") {
@@ -287,6 +313,55 @@ app.get("/api/oems/common", (_req, res) => {
     mostCommonOemNumbers: latestMostCommonOems,
     updatedAt: latestMostCommonOemsUpdatedAt,
   });
+});
+
+app.post("/api/web-links/filter-valid", async (req, res) => {
+  try {
+    const { items } = req.body || {};
+    if (!Array.isArray(items)) {
+      return res.status(400).json({
+        error: "Request body must include an items array.",
+      });
+    }
+
+    const normalizedItems = items
+      .filter((item) => item && typeof item.url === "string")
+      .map((item) => ({
+        label:
+          typeof item.label === "string" && item.label.trim()
+            ? item.label.trim()
+            : item.url,
+        url: item.url,
+      }));
+
+    const checks = await Promise.all(normalizedItems.map(async (item) => {
+      const result = await validateAutobahnProductPage(item.url);
+      return {
+        ...item,
+        valid: result.valid,
+        finalUrl: result.finalUrl,
+        isSameUrl: result.isSameUrl,
+      };
+    }));
+
+    return res.json({
+      validItems: checks
+        .filter((item) => item.valid)
+        .map(({ valid, ...item }) => item),
+      changedUrlItems: checks
+        .filter((item) => item.valid && !item.isSameUrl)
+        .map(({ valid, ...item }) => item),
+      removedItems: checks
+        .filter((item) => !item.valid)
+        .map(({ valid, ...item }) => item),
+      checkedCount: checks.length,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Server error while filtering web links.",
+      details: error.message,
+    });
+  }
 });
 
 app.use((_req, res) => {

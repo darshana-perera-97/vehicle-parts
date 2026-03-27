@@ -72,6 +72,11 @@ function App() {
   const [savedMostCommonOems, setSavedMostCommonOems] = useState([]);
   const [savedMostCommonOemsUpdatedAt, setSavedMostCommonOemsUpdatedAt] = useState(null);
   const [savedMostCommonOemsError, setSavedMostCommonOemsError] = useState("");
+  const [filteredWebLinkItems, setFilteredWebLinkItems] = useState([]);
+  const [changedUrlWebLinkItems, setChangedUrlWebLinkItems] = useState([]);
+  const [webLinksLoading, setWebLinksLoading] = useState(false);
+  const [webLinksFilterError, setWebLinksFilterError] = useState("");
+  const [removedLinksCount, setRemovedLinksCount] = useState(0);
 
   const topOems = useMemo(() => {
     const counts = new Map();
@@ -137,6 +142,55 @@ function App() {
 
     loadSavedMostCommonOems();
   }, [currentStep]);
+
+  useEffect(() => {
+    if (currentStep !== 5) return;
+    if (!webLinkItems.length) {
+      setFilteredWebLinkItems([]);
+      setChangedUrlWebLinkItems([]);
+      setRemovedLinksCount(0);
+      setWebLinksFilterError("");
+      return;
+    }
+
+    let active = true;
+    async function filterLinksAgainstAutobahnPages() {
+      setWebLinksLoading(true);
+      setWebLinksFilterError("");
+      try {
+        const res = await fetch(`${API_BASE}/api/web-links/filter-valid`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: webLinkItems }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to filter web links.");
+        }
+        if (!active) return;
+        setFilteredWebLinkItems(Array.isArray(data.validItems) ? data.validItems : []);
+        setChangedUrlWebLinkItems(
+          Array.isArray(data.changedUrlItems) ? data.changedUrlItems : []
+        );
+        const removed = Array.isArray(data.removedItems) ? data.removedItems.length : 0;
+        setRemovedLinksCount(removed);
+      } catch (error) {
+        if (!active) return;
+        setWebLinksFilterError(error.message);
+        // Fail open so user still sees links if filter endpoint fails.
+        setFilteredWebLinkItems(webLinkItems);
+        setChangedUrlWebLinkItems([]);
+        setRemovedLinksCount(0);
+      } finally {
+        if (active) setWebLinksLoading(false);
+      }
+    }
+
+    filterLinksAgainstAutobahnPages();
+    return () => {
+      active = false;
+    };
+  }, [currentStep, webLinkItems]);
 
   const category1Options = useMemo(() => {
     return Array.from(
@@ -1081,30 +1135,54 @@ function App() {
             )}
           </div>
 
-          {!webLinkItems.length && (
+          {webLinksLoading && (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              No links available yet. Load articles and OEM data in previous steps first.
+              Checking links and removing unavailable products...
             </div>
           )}
 
-          {!!webLinkItems.length && (
+          {!!webLinksFilterError && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+              {webLinksFilterError}
+            </div>
+          )}
+
+          {!webLinksLoading && !changedUrlWebLinkItems.length && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              No changed links found after loading pages. All loaded links are equal to original URLs.
+            </div>
+          )}
+
+          {!!changedUrlWebLinkItems.length && (
             <div className="grid grid-cols-1 gap-2">
-              {webLinkItems.map((item) => (
-                <a
-                  key={item.url}
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 transition hover:border-slate-300 hover:bg-slate-50"
+              {changedUrlWebLinkItems.map((item) => (
+                <div
+                  key={`${item.url}::${item.finalUrl || ""}`}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
                 >
-                  {item.label}
-                </a>
+                  <a
+                    href={item.finalUrl || item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-slate-800 underline-offset-2 hover:underline"
+                  >
+                    {item.label}
+                  </a>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Original: {item.url}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Loaded: {item.finalUrl || item.url}
+                  </p>
+                </div>
               ))}
             </div>
           )}
 
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-            Links shown: {webLinkItems.length} (max 40 OEM links + 40 article links)
+            Valid links: {filteredWebLinkItems.length}, changed links shown: {changedUrlWebLinkItems.length}
+            {removedLinksCount > 0 ? `, removed: ${removedLinksCount}` : ""}
+            {" "} (max 40 OEM links + 40 article links before filtering)
           </div>
 
           <div className="mt-4 flex justify-between">
