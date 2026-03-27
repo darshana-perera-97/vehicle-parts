@@ -102,17 +102,19 @@ function App() {
       )
     ).slice(0, 40);
 
-    const autobahnOemLinks = uniqueOemNos.map((oemNo) => ({
-      label: `Autobahn search OEM ${oemNo}`,
-      url: `https://autobahntraders.com/?s=${encodeURIComponent(oemNo)}+&post_type=product`,
+    const oemLinks = uniqueOemNos.map((oemNo) => ({
+      label: `OEM ${oemNo}`,
+      url: `https://autobahntraders.com/?s=${encodeURIComponent(oemNo)}&post_type=product`,
     }));
 
     const articleLinks = articleIds.map((articleId) => ({
-      label: `Search Article ${articleId}`,
-      url: `https://www.google.com/search?q=${encodeURIComponent(`TecDoc article ${articleId}`)}`,
+      label: `Article ${articleId}`,
+      url: `https://autobahntraders.com/?s=${encodeURIComponent(
+        String(articleId)
+      )}&post_type=product`,
     }));
 
-    return [...autobahnOemLinks, ...articleLinks];
+    return [...oemLinks, ...articleLinks];
   }, [oemRows, articlesRows]);
 
   useEffect(() => {
@@ -806,7 +808,7 @@ function App() {
                     : !selectedCategory2
                       ? secondCategoryRows.length
                       : !selectedCategory3
-                        ? thirdCategoryRows.length || selectedSecondCategoryRows.length
+                        ? (category3Options.length ? thirdCategoryRows.length : selectedSecondCategoryRows.length)
                         : !selectedCategory4
                           ? fourthCategoryRows.length || filteredPartsRows.length
                           : partsColumns.length
@@ -818,9 +820,9 @@ function App() {
                       : !selectedCategory2
                         ? ["categoryName2", "categoryId2"]
                         : !selectedCategory3
-                          ? thirdCategoryRows.length
-                            ? ["categoryName3", "categoryId3"]
-                            : ["categoryName2", "categoryId2"]
+                          ? (category3Options.length
+                              ? ["categoryName3", "categoryId3"]
+                              : ["categoryName2", "categoryId2"])
                           : !selectedCategory4 && fourthCategoryRows.length
                             ? ["categoryName4", "categoryId4"]
                             : partsColumns).map((col) => (
@@ -835,9 +837,7 @@ function App() {
                   : !selectedCategory2
                     ? secondCategoryRows
                     : !selectedCategory3
-                      ? thirdCategoryRows.length
-                        ? thirdCategoryRows
-                        : selectedSecondCategoryRows
+                      ? (category3Options.length ? thirdCategoryRows : selectedSecondCategoryRows)
                       : !selectedCategory4 && fourthCategoryRows.length
                         ? fourthCategoryRows
                         : filteredPartsRows).map((row, index) => (
@@ -848,9 +848,9 @@ function App() {
                       : !selectedCategory2
                         ? ["categoryName2", "categoryId2"]
                         : !selectedCategory3
-                          ? thirdCategoryRows.length
-                            ? ["categoryName3", "categoryId3"]
-                            : ["categoryName2", "categoryId2"]
+                          ? (category3Options.length
+                              ? ["categoryName3", "categoryId3"]
+                              : ["categoryName2", "categoryId2"])
                           : !selectedCategory4 && fourthCategoryRows.length
                             ? ["categoryName4", "categoryId4"]
                             : partsColumns).map((col) => (
