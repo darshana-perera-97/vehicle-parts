@@ -673,7 +673,7 @@ function App() {
           <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-600">
             Vehicle parts workflow
           </span>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">TecDoc VIN + Parts Lookup</h1>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">VIN + Parts Lookup</h1>
           <p className="mt-2 text-sm text-slate-500">
             Modern minimal workflow in 4 steps.
           </p>
