@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const fs = require("fs");
 require("dotenv").config();
 
 const app = express();
@@ -19,8 +20,35 @@ let latestMostCommonOemsUpdatedAt = null;
 app.use(cors());
 app.use(express.json());
 
-const frontendPath = path.join(__dirname, "..", "frontend");
-app.use(express.static(frontendPath));
+const frontend2BuildPath =
+  process.env.FRONTEND2_BUILD_PATH != null && process.env.FRONTEND2_BUILD_PATH !== ""
+    ? path.resolve(__dirname, process.env.FRONTEND2_BUILD_PATH)
+    : path.join(__dirname, "..", "frontend2", "build");
+
+let FRONTEND2_PUBLIC_PATH = process.env.FRONTEND2_PUBLIC_PATH;
+if (FRONTEND2_PUBLIC_PATH === undefined || FRONTEND2_PUBLIC_PATH === null) {
+  FRONTEND2_PUBLIC_PATH = "/API";
+}
+FRONTEND2_PUBLIC_PATH = String(FRONTEND2_PUBLIC_PATH).trim();
+if (FRONTEND2_PUBLIC_PATH.length > 0 && !FRONTEND2_PUBLIC_PATH.startsWith("/")) {
+  FRONTEND2_PUBLIC_PATH = `/${FRONTEND2_PUBLIC_PATH}`;
+}
+FRONTEND2_PUBLIC_PATH = FRONTEND2_PUBLIC_PATH.replace(/\/$/, "");
+
+const frontendBuildPath =
+  process.env.FRONTEND_BUILD_PATH != null && process.env.FRONTEND_BUILD_PATH !== ""
+    ? path.resolve(__dirname, process.env.FRONTEND_BUILD_PATH)
+    : path.join(__dirname, "..", "frontend", "build");
+
+let FRONTEND_PUBLIC_PATH = process.env.FRONTEND_PUBLIC_PATH;
+if (FRONTEND_PUBLIC_PATH === undefined || FRONTEND_PUBLIC_PATH === null) {
+  FRONTEND_PUBLIC_PATH = "/test";
+}
+FRONTEND_PUBLIC_PATH = String(FRONTEND_PUBLIC_PATH).trim();
+if (FRONTEND_PUBLIC_PATH.length > 0 && !FRONTEND_PUBLIC_PATH.startsWith("/")) {
+  FRONTEND_PUBLIC_PATH = `/${FRONTEND_PUBLIC_PATH}`;
+}
+FRONTEND_PUBLIC_PATH = FRONTEND_PUBLIC_PATH.replace(/\/$/, "");
 
 function getHeaders() {
   return {
@@ -364,10 +392,48 @@ app.post("/api/web-links/filter-valid", async (req, res) => {
   }
 });
 
-app.use((_req, res) => {
-  res.sendFile(path.join(frontendPath, "index.html"));
-});
+if (fs.existsSync(frontend2BuildPath)) {
+  if (FRONTEND2_PUBLIC_PATH) {
+    app.use(FRONTEND2_PUBLIC_PATH, express.static(frontend2BuildPath));
+    app.use(FRONTEND2_PUBLIC_PATH, (_req, res) => {
+      res.sendFile(path.join(frontend2BuildPath, "index.html"));
+    });
+    app.get("/", (_req, res) => {
+      res.redirect(302, `${FRONTEND2_PUBLIC_PATH}/`);
+    });
+  } else {
+    app.use(express.static(frontend2BuildPath));
+    app.use((req, res, next) => {
+      if (req.path.startsWith("/api/")) return next();
+      if (req.method !== "GET" && req.method !== "HEAD") return next();
+      res.sendFile(path.join(frontend2BuildPath, "index.html"));
+    });
+  }
+} else {
+  console.warn(
+    `[backend] frontend2 build not found: ${frontend2BuildPath} — run: cd frontend2 && npm run build`
+  );
+}
+
+if (FRONTEND_PUBLIC_PATH && fs.existsSync(frontendBuildPath)) {
+  app.use(FRONTEND_PUBLIC_PATH, express.static(frontendBuildPath));
+  app.use(FRONTEND_PUBLIC_PATH, (_req, res) => {
+    res.sendFile(path.join(frontendBuildPath, "index.html"));
+  });
+} else if (FRONTEND_PUBLIC_PATH) {
+  console.warn(
+    `[backend] frontend build not found: ${frontendBuildPath} — run: cd frontend && npm run build`
+  );
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  if (fs.existsSync(frontend2BuildPath) && FRONTEND2_PUBLIC_PATH) {
+    console.log(`SPA (frontend2): http://localhost:${PORT}${FRONTEND2_PUBLIC_PATH}/`);
+  } else if (fs.existsSync(frontend2BuildPath)) {
+    console.log(`SPA (frontend2): http://localhost:${PORT}/`);
+  }
+  if (fs.existsSync(frontendBuildPath) && FRONTEND_PUBLIC_PATH) {
+    console.log(`SPA (frontend): http://localhost:${PORT}${FRONTEND_PUBLIC_PATH}/`);
+  }
 });

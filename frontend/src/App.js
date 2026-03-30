@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE = window.location.port === "3000" ? "http://localhost:6050" : "";
 const ARTICLE_COLUMNS = [
@@ -47,6 +47,7 @@ function App() {
   const [vin, setVin] = useState("WDBFA68F42F202731");
   const [vinData, setVinData] = useState({ modelName: "-", carName: "-", vehicleId: "-" });
   const [vinError, setVinError] = useState("");
+  const [vinStepComplete, setVinStepComplete] = useState(false);
 
   const [vehicleIdInput, setVehicleIdInput] = useState("");
   const [partsError, setPartsError] = useState("");
@@ -77,6 +78,7 @@ function App() {
   const [webLinksLoading, setWebLinksLoading] = useState(false);
   const [webLinksFilterError, setWebLinksFilterError] = useState("");
   const [removedLinksCount, setRemovedLinksCount] = useState(0);
+  const prevStepRef = useRef(currentStep);
 
   const topOems = useMemo(() => {
     const counts = new Map();
@@ -121,6 +123,18 @@ function App() {
 
     return [...oemLinks, ...articleLinks];
   }, [oemRows, articlesRows]);
+
+  const uniqueChangedUrlWebLinkItems = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const item of changedUrlWebLinkItems) {
+      const loaded = String(item.finalUrl || item.url || "").trim();
+      if (!loaded || seen.has(loaded)) continue;
+      seen.add(loaded);
+      out.push(item);
+    }
+    return out;
+  }, [changedUrlWebLinkItems]);
 
   useEffect(() => {
     if (currentStep !== 5) return;
@@ -378,6 +392,7 @@ function App() {
 
   async function checkVin() {
     setVinError("");
+    setVinStepComplete(false);
     setVinData({ modelName: "-", carName: "-", vehicleId: "-" });
     const value = vin.trim();
     if (!value) {
@@ -396,7 +411,9 @@ function App() {
         carName: data.carName || "-",
         vehicleId,
       });
-      if (vehicleId !== "-") {
+      const validId = vehicleId && vehicleId !== "-";
+      setVinStepComplete(!!validId);
+      if (validId) {
         setVehicleIdInput(String(vehicleId));
         setArticlesVehicleId(String(vehicleId));
       }
@@ -517,6 +534,16 @@ function App() {
       setPartsMeta("No parts loaded yet.");
     }
   }
+
+  useEffect(() => {
+    if (currentStep === 2) {
+      const id = vehicleIdInput.trim();
+      if (id && prevStepRef.current !== 2) {
+        void loadParts();
+      }
+    }
+    prevStepRef.current = currentStep;
+  }, [currentStep, vehicleIdInput]);
 
   async function loadArticles() {
     setArticlesError("");
@@ -681,23 +708,30 @@ function App() {
 
         <nav className="rounded-3xl border border-slate-200 bg-white/95 p-3 shadow-[0_10px_40px_rgba(15,23,42,0.06)]">
           <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-            {STEP_ITEMS.map((item) => (
+            {STEP_ITEMS.map((item) => {
+              const stepLocked = item.id > 1 && !vinStepComplete;
+              return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setCurrentStep(item.id)}
+                disabled={stepLocked}
+                onClick={() => {
+                  if (stepLocked) return;
+                  setCurrentStep(item.id);
+                }}
                 className={`rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
                   currentStep === item.id
                     ? "border-slate-800 bg-slate-900 text-white shadow-lg shadow-slate-300/70"
                     : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                }`}
+                } ${stepLocked ? "cursor-not-allowed opacity-45" : ""}`}
               >
                 <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full border border-current text-[11px]">
                   {item.id}
                 </span>
                 {item.label}
               </button>
-            ))}
+            );
+            })}
           </div>
         </nav>
 
@@ -712,7 +746,10 @@ function App() {
             <input
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none ring-slate-200 transition focus:border-slate-300 focus:bg-white focus:ring-2"
               value={vin}
-              onChange={(e) => setVin(e.target.value)}
+              onChange={(e) => {
+                setVin(e.target.value);
+                setVinStepComplete(false);
+              }}
               placeholder="Enter VIN"
             />
             <button
@@ -732,8 +769,9 @@ function App() {
           <div className="mt-4 flex justify-end">
             <button
               type="button"
-              onClick={() => setCurrentStep(2)}
-              className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium transition hover:bg-slate-100"
+              onClick={() => vinStepComplete && setCurrentStep(2)}
+              disabled={!vinStepComplete}
+              className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Continue to Step 2
             </button>
@@ -1147,43 +1185,30 @@ function App() {
             </div>
           )}
 
-          {!webLinksLoading && !changedUrlWebLinkItems.length && (
+          {!webLinksLoading && !uniqueChangedUrlWebLinkItems.length && (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
               No changed links found after loading pages. All loaded links are equal to original URLs.
             </div>
           )}
 
-          {!!changedUrlWebLinkItems.length && (
-            <div className="grid grid-cols-1 gap-2">
-              {changedUrlWebLinkItems.map((item) => (
-                <div
-                  key={`${item.url}::${item.finalUrl || ""}`}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
-                >
+          {!!uniqueChangedUrlWebLinkItems.length && (
+            <div className="flex flex-col gap-1">
+              {uniqueChangedUrlWebLinkItems.map((item) => {
+                const href = String(item.finalUrl || item.url || "").trim();
+                return (
                   <a
-                    href={item.finalUrl || item.url}
+                    key={href}
+                    href={href}
                     target="_blank"
                     rel="noreferrer"
-                    className="font-medium text-slate-800 underline-offset-2 hover:underline"
+                    className="break-all text-sm text-blue-700 hover:underline"
                   >
-                    {item.label}
+                    {href}
                   </a>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Original: {item.url}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Loaded: {item.finalUrl || item.url}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
-
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-            Valid links: {filteredWebLinkItems.length}, changed links shown: {changedUrlWebLinkItems.length}
-            {removedLinksCount > 0 ? `, removed: ${removedLinksCount}` : ""}
-            {" "} (max 40 OEM links + 40 article links before filtering)
-          </div>
 
           <div className="mt-4 flex justify-between">
             <button
@@ -1195,7 +1220,10 @@ function App() {
             </button>
             <button
               type="button"
-              onClick={() => setCurrentStep(1)}
+              onClick={() => {
+                setVinStepComplete(false);
+                setCurrentStep(1);
+              }}
               className="rounded-2xl bg-slate-900 px-5 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
             >
               Start New Lookup
