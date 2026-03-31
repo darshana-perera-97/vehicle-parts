@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const API_BASE = window.location.port === "3000" ? "http://localhost:6050" : "";
+const API_BASE =
+  (process.env.REACT_APP_API_BASE || "").replace(/\/$/, "") ||
+  (process.env.NODE_ENV === "development" ? "http://localhost:6050" : "");
 const ARTICLE_COLUMNS = [
   "articleId",
   "articleNo",
@@ -11,8 +13,8 @@ const ARTICLE_COLUMNS = [
 
 const STEP_ITEMS = [
   { id: 1, label: "VIN" },
-  { id: 2, label: "Parts" },
-  { id: 3, label: "Articles" },
+  { id: 2, label: "Parts Catogeries" },
+  { id: 3, label: "Parts Matching" },
   { id: 4, label: "OEMs" },
   { id: 5, label: "Web Links" },
 ];
@@ -101,28 +103,13 @@ function App() {
       )
     ).slice(0, 40);
 
-    const articleIds = Array.from(
-      new Set(
-        articlesRows
-          .map((row) => row?.articleId)
-          .filter((value) => value !== null && value !== undefined && value !== "")
-      )
-    ).slice(0, 40);
-
     const oemLinks = uniqueOemNos.map((oemNo) => ({
       label: `OEM ${oemNo}`,
       url: `https://autobahntraders.com/?s=${encodeURIComponent(oemNo)}&post_type=product`,
     }));
 
-    const articleLinks = articleIds.map((articleId) => ({
-      label: `Article ${articleId}`,
-      url: `https://autobahntraders.com/?s=${encodeURIComponent(
-        String(articleId)
-      )}&post_type=product`,
-    }));
-
-    return [...oemLinks, ...articleLinks];
-  }, [oemRows, articlesRows]);
+    return oemLinks;
+  }, [oemRows]);
 
   const uniqueChangedUrlWebLinkItems = useMemo(() => {
     const seen = new Set();
@@ -698,7 +685,7 @@ function App() {
       <div className="mx-auto max-w-7xl space-y-5">
         <header className="rounded-3xl border border-slate-200 bg-white/95 p-7 shadow-[0_10px_40px_rgba(15,23,42,0.08)]">
           <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-600">
-            Vehicle parts workflow
+            Autobahntraders Automation Website
           </span>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">VIN + Parts Lookup</h1>
           <p className="mt-2 text-sm text-slate-500">
@@ -782,8 +769,8 @@ function App() {
         {currentStep === 2 && (
         <StepCard
           step={2}
-          title="Vehicle Parts List"
-          subtitle="Fetch all parts by Vehicle ID."
+          title="Vehicle Catogery List"
+          subtitle="Fetch all catogeries by Vehicle you entered"
           active={currentStep === 2}
         >
           <div className="flex flex-col gap-3 md:flex-row">
@@ -798,7 +785,7 @@ function App() {
               onClick={loadParts}
               className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
             >
-              Get Parts
+              Get Catogeries
             </button>
           </div>
           {!!partsError && <p className="mt-2 text-sm text-red-600">{partsError}</p>}
@@ -977,8 +964,8 @@ function App() {
         {currentStep === 3 && (
         <StepCard
           step={3}
-          title="Articles by Vehicle & Category"
-          subtitle="Load article list for selected vehicle and category."
+          title="Parts by Vehicle & Category"
+          subtitle="Load parts list for selected vehicle and category."
           active={currentStep === 3}
         >
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
@@ -999,7 +986,7 @@ function App() {
               onClick={loadArticles}
               className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
             >
-              Get Articles
+              Get Parts
             </button>
           </div>
 
@@ -1070,8 +1057,8 @@ function App() {
         {currentStep === 4 && (
         <StepCard
           step={4}
-          title="OEM Numbers by Article ID"
-          subtitle="Enter article IDs and get OEM brand/number mapping."
+          title="OEM Numbers by Parts"
+          subtitle="Matching Parts and get OEM brand/number mapping."
           active={currentStep === 4}
         >
           <div className="flex flex-col gap-3 md:flex-row">
@@ -1148,7 +1135,7 @@ function App() {
         <StepCard
           step={5}
           title="Web Links"
-          subtitle="Open useful links generated from OEM numbers and article IDs."
+          subtitle="Open useful links generated from OEM numbers"
           active={currentStep === 5}
         >
           <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
